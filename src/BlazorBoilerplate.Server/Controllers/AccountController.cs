@@ -581,7 +581,7 @@ namespace BlazorBoilerplate.Server.Controllers
         }
 
         [HttpGet("ListRoles")]
-        [Authorize(Policy = Policies.IsAdmin)]
+        [Authorize]
         public async Task<ApiResponse> ListRoles()
         {
             var roleList = _roleManager.Roles.Select(x => x.Name).ToList();
@@ -663,7 +663,7 @@ namespace BlazorBoilerplate.Server.Controllers
 
         [HttpPost("AddUserRoleGlobal")]
         [Authorize(Policy = Policies.IsAdmin)]
-        public async Task<ApiResponse> AddUserRoletoAppAsync([FromBody] string newRole)
+        public async Task<ApiResponse> AddUserRoleToAppAsync([FromBody] string newRole)
         {
             // first make sure the role doesn't already exist
             if (_roleManager.Roles.Any(r => r.Name == newRole))

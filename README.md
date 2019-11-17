@@ -23,12 +23,12 @@ Don't know what Blazor is? Read [here](https://docs.microsoft.com/en-us/aspnet/c
 
 Complete all Blazor dependencies.
 
-- [.Net Core SDK 3.1.100-preview1-014459](https://dotnet.microsoft.com/download/dotnet-core/3.1)
+- [.Net Core SDK 3.1.100-preview2-014569](https://dotnet.microsoft.com/download/dotnet-core/3.1)
 - Install the Latest Visual Studio 2019 Preview with the ASP.NET and web development workload selected.
-- Entity Framework Core on the command-line tools: **dotnet tool install --global dotnet-ef --version 3.1.100**
+- Entity Framework Core on the command-line tools: **dotnet tool install --global dotnet-ef --version 3.1.0-preview2.19525.5**
 
 ### How to run
-1. Install **dotnet-sdk 3.1.100** and the latest **Visual Studio 2019 Preview**.
+1. Install the latest .NET Core SDK **3.1.100-preview2** and the latest **Visual Studio 2019 Preview**.
 2. Clone or download.
 3. Open the solution in Visual Studio and press F5.
 4. To view the API using Swagger UI, Run the solution and go to: [http://localhost:53414/swagger/index.html](http://localhost:53414/swagger/index.html). Live example:
@@ -89,16 +89,18 @@ This project is licensed under the terms of the [MIT license](LICENSE).
 
 ### Problem Solving Tips
 - Make sure you have all pre-requisites installed.
+- Keep It Simple Stupid: If you are running into issues with SQL / connection string. First CHECK both appsettings.json (for production) and appsettings.development.json (for development). 
+Test out with SQLlite / file db. Then test out with a known good connection string.
 - Go back to the Origin: BlazorBoilerplate was built off of [BlazorWithIdentity](https://github.com/stavroskasidis/BlazorWithIdentity) so first step is to run this and try and publish. The reasoning is that this is a very lean project to reduce the amount of code and resources requiring debugging.
-- Keep It Simple Stupid: If you are running into issues with SQL / connection string. Test out with SQLlite / file db. Then test out with a known good connection string.
 - If still failing get on [Gitter BlazorBoilerplate](https://gitter.im/blazorboilerplate/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
- for BlazorBoilerplate or  [Gitter aspnet/Blazor](https://gitter.im/aspnet/Blazor?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge).
+ for Blazor Boilerplate or  [Gitter aspnet/Blazor](https://gitter.im/aspnet/Blazor?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge).
 
 ## News
 
 ### 0.3.2 (Under Development)
 - Identity Server 4 - Authentication with ASP.Net Identity Authorization with Policies  
-- v3.1.0-preview1 / Nuget Package updates
+- v3.1.0-preview2 / Nuget Package updates
+- Authorize / Policy Examples on Users Page
 - Known Issues: 
   - IAuditable Shadow Properties not getting UserId
 
@@ -147,7 +149,7 @@ This project is licensed under the terms of the [MIT license](LICENSE).
 
 ### 0.1.8
 - Middleware to log Api Requests and Responses for auditing and debugging. Thanks [salslab](https://github.com/salslab/AspNetCoreApiLoggingSample)
-- Middleware for consistent API Responses and Exception Handlin. Thanks [proudmonkey](http://vmsdurano.com/asp-net-core-and-web-api-a-custom-wrapper-for-managing-exceptions-and-consistent-responses/)
+- Middleware for consistent API Responses and Exception Handling. Thanks [proudmonkey](http://vmsdurano.com/asp-net-core-and-web-api-a-custom-wrapper-for-managing-exceptions-and-consistent-responses/)
 - Email Pop3 / IMAP retrieval. Thanks [npraskins](https://github.com/npraskins)
 - Responsive Navigation / Closed / Full / Minified / Minified & Hover effect
 - Added MatNavMenu PR for MatBlazor - Ver 1.5
