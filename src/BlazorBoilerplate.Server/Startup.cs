@@ -8,6 +8,7 @@ using BlazorBoilerplate.Server.Middleware;
 using BlazorBoilerplate.Server.Models;
 using BlazorBoilerplate.Server.Services;
 using BlazorBoilerplate.Shared.AuthorizationDefinitions;
+using IdentityServer4;
 using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -47,18 +48,33 @@ namespace BlazorBoilerplate.Server
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
-            string migrationsAssembly = typeof(Startup).GetTypeInfo().Assembly.GetName().Name;
+            services.Configure<ApiBehaviorOptions>(options => { options.SuppressModelStateInvalidFilter = true; });
 
-            services.AddDbContext<ApplicationDbContext>(options => {
-                if (Convert.ToBoolean(Configuration["BlazorBoilerplate:UseSqlServer"] ?? "false"))
+            var migrationsAssembly = typeof(Startup).GetTypeInfo().Assembly.GetName().Name;
+            var useSqlServer = Convert.ToBoolean(Configuration["BlazorBoilerplate:UseSqlServer"] ?? "false");
+            var dbConnString = useSqlServer
+                ? Configuration.GetConnectionString("DefaultConnection")
+                : $"Filename={Configuration.GetConnectionString("SqlLiteConnectionFileName")}";
+
+            var authAuthority = Configuration["BlazorBoilerplate:IS4ApplicationUrl"].TrimEnd('/');
+
+            void DbContextOptionsBuilder(DbContextOptionsBuilder builder)
+            {
+                if (useSqlServer)
                 {
-                    options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"), sql => sql.MigrationsAssembly(migrationsAssembly));//SQL Server Database
+                    builder.UseSqlServer(dbConnString, sql => sql.MigrationsAssembly(migrationsAssembly));
+                }
+                else if (Convert.ToBoolean(Configuration["BlazorBoilerplate:UsePostgresServer"] ?? "false"))
+                {
+                    builder.UseNpgsql(Configuration.GetConnectionString("PostgresConnection"), sql => sql.MigrationsAssembly(migrationsAssembly));
                 }
                 else
                 {
-                    options.UseSqlite($"Filename={Configuration.GetConnectionString("SqlLiteConnectionFileName")}", sql => sql.MigrationsAssembly(migrationsAssembly));  // Sql Lite / file database
+                    builder.UseSqlite(dbConnString, sql => sql.MigrationsAssembly(migrationsAssembly));
                 }
-            });
+            }
+
+            services.AddDbContext<ApplicationDbContext>(DbContextOptionsBuilder);
 
             services.AddIdentity<ApplicationUser, IdentityRole<Guid>>()
                 .AddRoles<IdentityRole<Guid>>()
@@ -71,7 +87,7 @@ namespace BlazorBoilerplate.Server
             // Adds IdentityServer
             var identityServerBuilder = services.AddIdentityServer(options =>
             {
-                options.IssuerUri = "blazorboilerplate_spa";
+                options.IssuerUri = authAuthority;
                 options.Events.RaiseErrorEvents = true;
                 options.Events.RaiseInformationEvents = true;
                 options.Events.RaiseFailureEvents = true;
@@ -79,29 +95,11 @@ namespace BlazorBoilerplate.Server
             })
               .AddConfigurationStore(options =>
               {
-                  options.ConfigureDbContext = builder => {
-                      if (Convert.ToBoolean(Configuration["BlazorBoilerplate:UseSqlServer"] ?? "false"))
-                      {
-                          builder.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"), sql => sql.MigrationsAssembly(migrationsAssembly)); //SQL Server Database
-                      }
-                      else
-                      {
-                          builder.UseSqlite($"Filename={Configuration.GetConnectionString("SqlLiteConnectionFileName")}", sql => sql.MigrationsAssembly(migrationsAssembly));  // Sql Lite / file database
-                      }
-                  };
+                  options.ConfigureDbContext = DbContextOptionsBuilder;
               })
               .AddOperationalStore(options =>
               {
-                  options.ConfigureDbContext = builder => {
-                      if (Convert.ToBoolean(Configuration["BlazorBoilerplate:UseSqlServer"] ?? "false"))
-                      {
-                          builder.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"), sql => sql.MigrationsAssembly(migrationsAssembly)); //SQL Server Database
-                      }
-                      else
-                      {
-                          builder.UseSqlite($"Filename={Configuration.GetConnectionString("SqlLiteConnectionFileName")}", sql => sql.MigrationsAssembly(migrationsAssembly));  // Sql Lite / file database
-                      }
-                  };
+                  options.ConfigureDbContext = DbContextOptionsBuilder;
 
                   // this enables automatic token cleanup. this is optional.
                   options.EnableTokenCleanup = true;
@@ -133,8 +131,6 @@ namespace BlazorBoilerplate.Server
                     {
                         store.Open(OpenFlags.ReadOnly);
                         var certs = store.Certificates.Find(X509FindType.FindByThumbprint, certificateThumbprint, false);
-                        //Console.WriteLine("Certificat count = " + certs.Count);
-                        //Console.WriteLine("Certificate path = " + StoreName.CertificateAuthority);
                         if (certs.Count > 0)
                         {
                             cert = certs[0];
@@ -170,14 +166,29 @@ namespace BlazorBoilerplate.Server
                 identityServerBuilder.AddSigningCredential(cert);
             }
 
-            services.AddAuthentication(IdentityServerAuthenticationDefaults.AuthenticationScheme)
-                .AddIdentityServerAuthentication(options =>
+            var authBuilder = services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = IdentityServerAuthenticationDefaults.AuthenticationScheme;
+            })
+            .AddIdentityServerAuthentication(options =>
+            {
+                options.Authority = authAuthority;
+                options.SupportedTokens = SupportedTokens.Jwt;
+                options.RequireHttpsMetadata = _environment.IsProduction() ? true : false;
+                options.ApiName = IdentityServerConfig.ApiName;
+            });
+
+            //https://docs.microsoft.com/en-us/aspnet/core/security/authentication/social/google-logins?view=aspnetcore-3.1
+            if (Convert.ToBoolean(Configuration["ExternalAuthProviders:Google:Enabled"] ?? "false"))
+            {
+                authBuilder.AddGoogle(options =>
                 {
-                    options.Authority = Configuration["BlazorBoilerplate:IS4ApplicationUrl"].TrimEnd('/');
-                    options.SupportedTokens = SupportedTokens.Jwt;
-                    options.RequireHttpsMetadata = _environment.IsProduction() ? true : false;
-                    options.ApiName = IdentityServerConfig.ApiName;
+                    options.SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme;
+
+                    options.ClientId = Configuration["ExternalAuthProviders:Google:ClientId"];
+                    options.ClientSecret = Configuration["ExternalAuthProviders:Google:ClientSecret"];
                 });
+            }
 
             services.Configure<ApiBehaviorOptions>(options => { options.SuppressModelStateInvalidFilter = true; });
 
@@ -215,8 +226,21 @@ namespace BlazorBoilerplate.Server
                 }
             });
 
+            services.Configure<CookiePolicyOptions>(options =>
+            {
+                options.MinimumSameSitePolicy = SameSiteMode.None;
+            });
+
+            services.ConfigureExternalCookie(options =>
+            {
+                // macOS login fix
+                options.Cookie.SameSite = SameSiteMode.None;
+            });
+
             services.ConfigureApplicationCookie(options =>
             {
+                // macOS login fix
+                options.Cookie.SameSite = SameSiteMode.None;
                 options.Cookie.HttpOnly = false;
 
                 // Suppress redirect on API URLs in ASP.NET Core -> https://stackoverflow.com/a/56384729/54159
@@ -261,6 +285,7 @@ namespace BlazorBoilerplate.Server
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             services.AddScoped<IUserSession, UserSession>();
             services.AddSingleton<IEmailConfiguration>(Configuration.GetSection("EmailConfiguration").Get<EmailConfiguration>());
+            services.AddTransient<IAccountService, AccountService>();
             services.AddTransient<IEmailService, EmailService>();
             services.AddTransient<IUserProfileService, UserProfileService>();
             services.AddTransient<IApiLogService, ApiLogService>();
@@ -294,7 +319,6 @@ namespace BlazorBoilerplate.Server
 
             app.UseResponseCompression(); // This must be before the other Middleware if that manipulates Response
 
-            app.UseMiddleware<UserSessionMiddleware>();
             // A REST API global exception handler and response wrapper for a consistent API
             // Configure API Loggin in appsettings.json - Logs most API calls. Great for debugging and user activity audits
             app.UseMiddleware<APIResponseRequestLoggingMiddleware>(Convert.ToBoolean(Configuration["BlazorBoilerplate:EnableAPILogging:Enabled"] ?? "true"));
@@ -306,18 +330,22 @@ namespace BlazorBoilerplate.Server
             }
             else
             {
-            //    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-            //    app.UseHsts(); //HSTS Middleware (UseHsts) to send HTTP Strict Transport Security Protocol (HSTS) headers to clients.
+              // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+              //    app.UseHsts(); //HSTS Middleware (UseHsts) to send HTTP Strict Transport Security Protocol (HSTS) headers to clients.
             }
 
+            app.UseHttpsRedirection();
             //app.UseStaticFiles();
+            app.UseCookiePolicy();
             app.UseClientSideBlazorFiles<Client.Startup>();
 
-            app.UseHttpsRedirection();
             app.UseRouting();
-            //app.UseAuthentication();
+            //app.UseAuthentication(); //Removed for IS4
             app.UseIdentityServer();
             app.UseAuthorization();
+
+            //Must be AFTER the Auth middleware to get the User/Identity info
+            app.UseMiddleware<UserSessionMiddleware>();
 
             // NSwag
             app.UseOpenApi();

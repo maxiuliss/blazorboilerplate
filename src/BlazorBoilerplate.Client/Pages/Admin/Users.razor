@@ -7,8 +7,7 @@
 @inject AppState appState
 
 <h1>Users</h1>
-<p>User management Screen. Mostly Functional, still under construction</p>
-<MatButton Raised="true" TrailingIcon="add_group" OnClick="@(e => { this.createRoleDialogOpen = true; })" Label="Add Role" />
+<p>User Management.</p>
 
 @if (users == null)
 {
@@ -101,7 +100,7 @@ else
                 <MatChipSet>
                     @foreach (var role in roleSelections.OrderBy(x => x.Name))
                     {
-                        <MatChip Label="@role.Name" LeadingIcon="@( (role.Selected) ? "done" : "")" @onclick="@(()=>UpdateUserRole(role))" />
+                        <MatChip Label="@role.Name" LeadingIcon="@( (role.IsSelected) ? "done" : "")" @onclick="@(()=>UpdateUserRole(role))" />
                     }
                 </MatChipSet>
             </fieldset>
@@ -121,23 +120,6 @@ else
     <MatDialogActions>
         <MatButton OnClick="@(e => { deleteUserDialogOpen = false; })">Cancel</MatButton>
         <MatButton OnClick="@DeleteUserAsync">Delete</MatButton>
-    </MatDialogActions>
-</MatDialog>
-
-<MatDialog @bind-IsOpen="@createRoleDialogOpen">
-    <MatDialogTitle>
-        Add New Role
-    </MatDialogTitle>
-    <MatDialogContent>
-        <fieldset>
-            <div class="form-group">
-                <MatTextField @bind-Value="@newRoletoAdd" Label="New Role to Add" Icon="add" IconTrailing="true" FullWidth="true" Required="true"></MatTextField>
-            </div>
-        </fieldset>
-    </MatDialogContent>
-    <MatDialogActions>
-        <MatButton OnClick="@(e => { createRoleDialogOpen = false; })">Cancel</MatButton>
-        <MatButton OnClick="@CreateRole">Add Role</MatButton>
     </MatDialogActions>
 </MatDialog>
 
@@ -178,18 +160,16 @@ else
 
     ApiResponseDto apiResponse;
     List<UserInfoDto> users;
-    List<roleSelection> roleSelections { get; set; } = new List<roleSelection>();
-
-    public string newRoletoAdd { get; set; } = "";
+    List<RoleSelection> roleSelections { get; set; } = new List<RoleSelection>();
 
     public UserInfoDto user { get; set; } = new UserInfoDto(); // Holds user being actively modified or created
     RegisterDto registerParameters { get; set; } = new RegisterDto();
 
     UserProfileDto userProfile = new UserProfileDto();
 
-    public class roleSelection
+    public class RoleSelection
     {
-        public bool Selected { get; set; }
+        public bool IsSelected { get; set; }
         public string Name { get; set; }
     };
 
@@ -203,7 +183,7 @@ else
     public async Task RetrieveUserListAsync()
     {
         string queryString = "?pageSize=" + pageSize.ToString() + "&pageNumber=" + currentPage.ToString(); // this is to support pagination in the future, need to integrate with MatTable
-        apiResponse = await Http.GetJsonAsync<ApiResponseDto>("api/Account" + queryString);
+        apiResponse = await Http.GetJsonAsync<ApiResponseDto>("api/Admin/Users" + queryString);
 
         if (apiResponse.StatusCode == 200)
         {
@@ -224,11 +204,11 @@ else
         {
             if (user.Roles.Contains(role.Name))
             {
-                role.Selected = true;
+                role.IsSelected = true;
             }
             else
             {
-                role.Selected = false;
+                role.IsSelected = false;
             }
         }
         this.editDialogOpen = true;
@@ -249,9 +229,9 @@ else
         this.deleteUserDialogOpen = true;
     }
 
-    protected void UpdateUserRole(roleSelection roleSelectionItem)
+    protected void UpdateUserRole(RoleSelection roleSelectionItem)
     {
-        roleSelectionItem.Selected = !roleSelectionItem.Selected;
+        roleSelectionItem.IsSelected = !roleSelectionItem.IsSelected;
     }
 
     public async Task PopulateRoleList()
@@ -268,15 +248,15 @@ else
             return;
         }
 
-        roleSelections = new List<roleSelection>();// clear out list
+        roleSelections = new List<RoleSelection>();// clear out list
 
         // initialize selection list with all un-selected
         foreach (string role in roleNames)
         {
-            roleSelections.Add(new roleSelection
+            roleSelections.Add(new RoleSelection
             {
                 Name = role,
-                Selected = false
+                IsSelected = false
             });
         }
     }
@@ -286,7 +266,7 @@ else
         try
         {
             //update the user object's role list with the new selection set
-            user.Roles = roleSelections.Where(x => x.Selected == true).Select(x => x.Name).ToList();
+            user.Roles = roleSelections.Where(x => x.IsSelected == true).Select(x => x.Name).ToList();
 
             var apiResponse = await Http.PutJsonAsync<ApiResponseDto>("api/Account", user);
             if (apiResponse.StatusCode == 200)
@@ -332,29 +312,6 @@ else
         catch (Exception ex)
         {
             matToaster.Add(ex.Message, MatToastType.Danger, "User Creation Failed");
-        }
-    }
-
-    public async Task CreateRole()
-    {
-        if (!String.IsNullOrWhiteSpace(newRoletoAdd))
-        {
-            apiResponse = await Http.PostJsonAsync<ApiResponseDto>("api/Account/AddUserRoleGlobal", newRoletoAdd);
-            if (apiResponse.StatusCode == 200)
-            {
-                matToaster.Add("Role Added", MatToastType.Success);
-                await PopulateRoleList();
-                StateHasChanged();
-            }
-            else
-            {
-                matToaster.Add(apiResponse.Message, MatToastType.Danger);
-            }
-            createRoleDialogOpen = false;
-        }
-        else
-        {
-            matToaster.Add("Role Creation Error", MatToastType.Danger, "Enter in a Role Name");
         }
     }
 
